@@ -1,0 +1,5 @@
+{
+  "name": "AI Certificate Generator",
+  "description": "An AI-powered certificate template generator with a Canva-like drag-and-drop editor. Users can specify a certificate type, and the AI will generate a design that can be customized and downloaded as a PDF.",
+  "requestFramePermissions": []
+}
