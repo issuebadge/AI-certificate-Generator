@@ -1,7 +1,8 @@
 
 import React from 'react';
-import { Element } from '../types';
+import { Element, BorderStyle } from '../types';
 import EditableElement from './EditableElement';
+import DecorativeBorder from './DecorativeBorder';
 
 interface CertificateCanvasProps {
   certificateRef: React.RefObject<HTMLDivElement>;
@@ -9,6 +10,11 @@ interface CertificateCanvasProps {
   selectedElementId: string | null;
   setSelectedElementId: (id: string | null) => void;
   updateElement: (id: string, newProps: Partial<Element>) => void;
+  certificateSize: { width: number, height: number };
+  certificateBgColor: string;
+  certificateBorderColor: string;
+  certificateBorderStyle: BorderStyle;
+  scale: number;
 }
 
 const CertificateCanvas: React.FC<CertificateCanvasProps> = ({
@@ -17,6 +23,11 @@ const CertificateCanvas: React.FC<CertificateCanvasProps> = ({
   selectedElementId,
   setSelectedElementId,
   updateElement,
+  certificateSize,
+  certificateBgColor,
+  certificateBorderColor,
+  certificateBorderStyle,
+  scale,
 }) => {
   const handleCanvasClick = (e: React.MouseEvent<HTMLDivElement>) => {
     if (e.target === certificateRef.current) {
@@ -27,13 +38,22 @@ const CertificateCanvas: React.FC<CertificateCanvasProps> = ({
   return (
     <div
       ref={certificateRef}
-      className="w-[1123px] h-[794px] bg-white shadow-2xl relative"
+      className="shadow-2xl relative transition-all duration-300"
       style={{
-          boxSizing: 'content-box',
-          border: '1px solid #ccc'
+          width: `${certificateSize.width}px`,
+          height: `${certificateSize.height}px`,
+          backgroundColor: certificateBgColor,
+          transform: `scale(${scale})`,
+          transformOrigin: 'top left',
       }}
       onClick={handleCanvasClick}
     >
+      <DecorativeBorder 
+        width={certificateSize.width} 
+        height={certificateSize.height} 
+        color={certificateBorderColor}
+        style={certificateBorderStyle}
+      />
       {elements.map((element) => (
         <EditableElement
           key={element.id}

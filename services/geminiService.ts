@@ -2,7 +2,7 @@
 import { GoogleGenAI, Type } from "@google/genai";
 import { CertificateElement } from '../types';
 
-export const generateCertificateTemplate = async (prompt: string): Promise<CertificateElement> => {
+export const generateCertificateTemplate = async (prompt: string, width: number, height: number): Promise<CertificateElement> => {
     if (!process.env.API_KEY) {
         throw new Error("API_KEY environment variable not set");
     }
@@ -13,6 +13,7 @@ export const generateCertificateTemplate = async (prompt: string): Promise<Certi
         properties: {
             backgroundColor: { type: Type.STRING, description: "Background color of the certificate, e.g., '#FFFFFF'." },
             borderColor: { type: Type.STRING, description: "Border color, e.g., '#C0C0C0'." },
+            borderStyle: { type: Type.STRING, description: "The style of the border. Can be 'classic', 'double', or 'minimal'." },
             elements: {
                 type: Type.ARRAY,
                 description: "An array of elements on the certificate.",
@@ -45,10 +46,10 @@ export const generateCertificateTemplate = async (prompt: string): Promise<Certi
                 }
             }
         },
-        required: ["backgroundColor", "borderColor", "elements"]
+        required: ["backgroundColor", "borderColor", "borderStyle", "elements"]
     };
 
-    const fullPrompt = `Generate a JSON structure for a certificate template for "${prompt}". The certificate is A4 landscape size (1123x794 pixels). Populate all text fields with appropriate placeholder content. For images, use placeholders like 'placeholder:logo' or 'placeholder:seal'. Ensure all elements have a unique ID using crypto.randomUUID(). Stick strictly to the provided JSON schema.`;
+    const fullPrompt = `Generate a JSON structure for a certificate template for "${prompt}". The certificate is size ${width}x${height} pixels. Populate all text fields with appropriate placeholder content. For images, use placeholders like 'placeholder:logo' or 'placeholder:seal'. Ensure all elements have a unique ID using crypto.randomUUID(). Stick strictly to the provided JSON schema. Choose an appropriate borderStyle.`;
 
     try {
         const response = await ai.models.generateContent({

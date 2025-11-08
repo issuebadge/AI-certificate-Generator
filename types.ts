@@ -37,8 +37,11 @@ export interface ShapeElement extends BaseElement {
 
 export type Element = TextElement | ImageElement | ShapeElement;
 
+export type BorderStyle = 'classic' | 'double' | 'minimal';
+
 export interface CertificateElement {
     backgroundColor: string;
     borderColor: string;
+    borderStyle: BorderStyle;
     elements: Element[];
 }

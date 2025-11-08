@@ -1,6 +1,6 @@
 
 import React, { useState, useCallback } from 'react';
-import { Element, TextElement } from '../types';
+import { Element, TextElement, CertificateElement, BorderStyle } from '../types';
 import { generateCertificateTemplate } from '../services/geminiService';
 import { AddImageIcon, AddTextIcon, DeleteIcon, DownloadIcon, LoaderIcon, RedoIcon, UndoIcon, AlignCenterIcon, AlignLeftIcon, AlignRightIcon, AlignJustifyIcon, BoldIcon, ItalicIcon, UnderlineIcon } from './icons';
 
@@ -12,9 +12,13 @@ declare global {
   }
 }
 
+interface CertificateSize {
+    name: string;
+    width: number;
+    height: number;
+}
+
 interface ControlsSidebarProps {
-  elements: Element[];
-  setElements: (elements: Element[]) => void;
   selectedElement: Element | null;
   updateElement: (id: string, newProps: Partial<Element>) => void;
   addElement: (type: 'text' | 'image') => void;
@@ -25,12 +29,35 @@ interface ControlsSidebarProps {
   handleRedo: () => void;
   canUndo: boolean;
   canRedo: boolean;
+  onTemplateGenerated: (template: CertificateElement) => void;
+  certificateSize: CertificateSize;
+  setCertificateSize: (size: CertificateSize) => void;
+  certificateBorderStyle: BorderStyle;
+  setCertificateBorderStyle: (style: BorderStyle) => void;
 }
 
 const FONT_FACES = ['Roboto', 'Merriweather', 'Montserrat', 'Playfair Display', 'Open Sans', 'Lato'];
+const SIZES = [
+    { name: 'A4 Landscape', width: 1123, height: 794, format: 'a4', orientation: 'l' as const },
+    { name: 'A4 Portrait', width: 794, height: 1123, format: 'a4', orientation: 'p' as const },
+    { name: 'Letter Landscape', width: 1056, height: 816, format: 'letter', orientation: 'l' as const },
+    { name: 'Letter Portrait', width: 816, height: 1056, format: 'letter', orientation: 'p' as const },
+];
+const BORDER_STYLES: { id: BorderStyle, name: string }[] = [
+    { id: 'classic', name: 'Classic Ornate' },
+    { id: 'double', name: 'Double Line' },
+    { id: 'minimal', name: 'Minimalist' },
+];
+const SUGGESTIONS = [
+    'Certificate of Completion',
+    'Employee of the Month',
+    'Sports Achievement Award',
+    'Workshop Attendance',
+    'Certificate of Recognition'
+];
+
 
 const ControlsSidebar: React.FC<ControlsSidebarProps> = ({
-  setElements,
   selectedElement,
   updateElement,
   addElement,
@@ -41,6 +68,11 @@ const ControlsSidebar: React.FC<ControlsSidebarProps> = ({
   handleRedo,
   canUndo,
   canRedo,
+  onTemplateGenerated,
+  certificateSize,
+  setCertificateSize,
+  certificateBorderStyle,
+  setCertificateBorderStyle
 }) => {
   const [prompt, setPrompt] = useState('Certificate of Appreciation');
   const [isLoading, setIsLoading] = useState(false);
@@ -50,9 +82,8 @@ const ControlsSidebar: React.FC<ControlsSidebarProps> = ({
     setIsLoading(true);
     setError(null);
     try {
-      const template = await generateCertificateTemplate(prompt);
-      setElements(template.elements);
-      setSelectedElementId(null);
+      const template = await generateCertificateTemplate(prompt, certificateSize.width, certificateSize.height);
+      onTemplateGenerated(template);
     } catch (e) {
       setError('Failed to generate template. Please check your API key and try again.');
     } finally {
@@ -69,19 +100,32 @@ const ControlsSidebar: React.FC<ControlsSidebarProps> = ({
             const certificateNode = certificateRef.current;
             if (!certificateNode) return;
 
+            const selectedSize = SIZES.find(s => s.name === certificateSize.name);
+            if (!selectedSize) return;
+
             window.html2canvas(certificateNode, { scale: 2 }).then(canvas => {
                 const imgData = canvas.toDataURL('image/png');
                 const pdf = new jsPDF({
-                    orientation: 'landscape',
+                    orientation: selectedSize.orientation,
                     unit: 'px',
-                    format: [certificateNode.offsetWidth, certificateNode.offsetHeight]
+                    format: selectedSize.format
                 });
-                pdf.addImage(imgData, 'PNG', 0, 0, certificateNode.offsetWidth, certificateNode.offsetHeight);
+                const pdfWidth = pdf.internal.pageSize.getWidth();
+                const pdfHeight = pdf.internal.pageSize.getHeight();
+
+                pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
                 pdf.save("certificate.pdf");
             });
         }, 100);
     }
-  }, [certificateRef, setSelectedElementId]);
+  }, [certificateRef, setSelectedElementId, certificateSize.name]);
+
+    const handleSizeChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+        const newSize = SIZES.find(s => s.name === e.target.value);
+        if (newSize) {
+            setCertificateSize(newSize);
+        }
+    };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0] && selectedElement?.type === 'image') {
@@ -194,20 +238,41 @@ const ControlsSidebar: React.FC<ControlsSidebarProps> = ({
         <p className="text-sm text-gray-500">Design beautiful certificates instantly.</p>
       </div>
 
-      <div className="border-b pb-4">
-        <label htmlFor="prompt" className="text-sm font-semibold text-gray-600 mb-2 block">Certificate Type</label>
-        <textarea
-          id="prompt"
-          value={prompt}
-          onChange={(e) => setPrompt(e.target.value)}
-          className="w-full p-2 border rounded-md focus:ring-2 focus:ring-indigo-500 transition duration-150"
-          rows={2}
-          placeholder="e.g., Employee of the Month"
-        />
+       <div className="border-b pb-4 space-y-3">
+          <div>
+            <label htmlFor="size-select" className="text-sm font-semibold text-gray-600 mb-2 block">Page Size</label>
+            <select id="size-select" value={certificateSize.name} onChange={handleSizeChange} className="w-full p-2 border rounded-md focus:ring-2 focus:ring-indigo-500 transition duration-150 bg-white text-sm">
+                {SIZES.map(s => <option key={s.name} value={s.name}>{s.name} ({s.width}x{s.height}px)</option>)}
+            </select>
+          </div>
+          <div>
+            <label htmlFor="border-style-select" className="text-sm font-semibold text-gray-600 mb-2 block">Border Style</label>
+            <select id="border-style-select" value={certificateBorderStyle} onChange={(e) => setCertificateBorderStyle(e.target.value as BorderStyle)} className="w-full p-2 border rounded-md focus:ring-2 focus:ring-indigo-500 transition duration-150 bg-white text-sm">
+                {BORDER_STYLES.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+            </select>
+          </div>
+          <div>
+            <label htmlFor="prompt" className="text-sm font-semibold text-gray-600 mb-2 block">Certificate Type</label>
+            <textarea
+              id="prompt"
+              value={prompt}
+              onChange={(e) => setPrompt(e.target.value)}
+              className="w-full p-2 border rounded-md focus:ring-2 focus:ring-indigo-500 transition duration-150"
+              rows={2}
+              placeholder="e.g., Employee of the Month"
+            />
+            <div className="flex flex-wrap gap-1 mt-2">
+                {SUGGESTIONS.map(s => (
+                    <button key={s} onClick={() => setPrompt(s)} className="text-xs bg-gray-200 text-gray-700 px-2 py-1 rounded-full hover:bg-gray-300 transition duration-150">
+                        {s}
+                    </button>
+                ))}
+            </div>
+          </div>
         <button
           onClick={handleGenerate}
           disabled={isLoading}
-          className="w-full mt-2 bg-indigo-600 text-white font-semibold py-2 px-4 rounded-md hover:bg-indigo-700 disabled:bg-indigo-300 flex items-center justify-center transition duration-150"
+          className="w-full bg-indigo-600 text-white font-semibold py-2 px-4 rounded-md hover:bg-indigo-700 disabled:bg-indigo-300 flex items-center justify-center transition duration-150"
         >
           {isLoading ? <LoaderIcon /> : 'Generate with AI'}
         </button>
