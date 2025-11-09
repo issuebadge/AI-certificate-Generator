@@ -82,6 +82,8 @@ const DecorativeBorder: React.FC<DecorativeBorderProps> = ({ width, height, colo
         return renderDoubleBorder();
       case 'minimal':
         return renderMinimalBorder();
+      case 'none':
+        return null;
       default:
         return null;
     }

@@ -13,7 +13,7 @@ export const generateCertificateTemplate = async (prompt: string, width: number,
         properties: {
             backgroundColor: { type: Type.STRING, description: "Background color of the certificate, e.g., '#FFFFFF'." },
             borderColor: { type: Type.STRING, description: "Border color, e.g., '#C0C0C0'." },
-            borderStyle: { type: Type.STRING, description: "The style of the border. Can be 'classic', 'double', or 'minimal'." },
+            borderStyle: { type: Type.STRING, description: "The style of the border. Can be 'classic', 'double', 'minimal', or 'none'." },
             elements: {
                 type: Type.ARRAY,
                 description: "An array of elements on the certificate.",

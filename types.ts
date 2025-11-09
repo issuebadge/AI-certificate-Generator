@@ -1,4 +1,11 @@
 
+export interface CertificateSize {
+  name: string;
+  width: number;
+  height: number;
+  displayName: string;
+}
+
 export interface BaseElement {
   id: string;
   type: 'text' | 'image' | 'shape';
@@ -37,11 +44,15 @@ export interface ShapeElement extends BaseElement {
 
 export type Element = TextElement | ImageElement | ShapeElement;
 
-export type BorderStyle = 'classic' | 'double' | 'minimal';
+export type BorderStyle = 'classic' | 'double' | 'minimal' | 'none';
 
 export interface CertificateElement {
     backgroundColor: string;
     borderColor: string;
     borderStyle: BorderStyle;
     elements: Element[];
+}
+
+export interface CertificateTemplate extends CertificateElement {
+    size: CertificateSize;
 }

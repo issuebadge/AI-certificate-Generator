@@ -1,21 +1,15 @@
 
 import React, { useState, useCallback, useRef, useLayoutEffect } from 'react';
-import { CertificateElement, Element, BorderStyle } from './types';
+import { CertificateElement, Element, BorderStyle, CertificateTemplate, CertificateSize } from './types';
 import ControlsSidebar from './components/ControlsSidebar';
 import CertificateCanvas from './components/CertificateCanvas';
-
-interface CertificateSize {
-  name: string;
-  width: number;
-  height: number;
-}
 
 const App: React.FC = () => {
   const [elements, setElements] = useState<Element[]>([]);
   const [selectedElementId, setSelectedElementId] = useState<string | null>(null);
   const [history, setHistory] = useState<Element[][]>([[]]);
   const [historyIndex, setHistoryIndex] = useState(0);
-  const [certificateSize, setCertificateSize] = useState<CertificateSize>({ name: 'A4 Landscape', width: 1123, height: 794 });
+  const [certificateSize, setCertificateSize] = useState<CertificateSize>({ name: 'Letter Landscape', width: 1056, height: 816, displayName: 'Letter Landscape (11" x 8.5")' });
   const [certificateBgColor, setCertificateBgColor] = useState<string>('#ffffff');
   const [certificateBorderColor, setCertificateBorderColor] = useState<string>('#c0a062');
   const [certificateBorderStyle, setCertificateBorderStyle] = useState<BorderStyle>('classic');
@@ -97,7 +91,7 @@ const App: React.FC = () => {
             fontStyle: 'normal',
             textDecoration: 'none',
             color: '#000000',
-            textAlign: 'center',
+            textAlign: 'left',
             letterSpacing: 0,
             lineHeight: 1.2
         };
@@ -122,11 +116,52 @@ const App: React.FC = () => {
     setSelectedElementId(null);
   };
 
+  const handleLayerChange = useCallback((id: string, direction: 'forward' | 'backward' | 'front' | 'back') => {
+      const index = elements.findIndex(el => el.id === id);
+      if (index === -1) return;
+
+      const newElements = [...elements];
+      const [element] = newElements.splice(index, 1);
+
+      switch (direction) {
+          case 'forward':
+              if (index < newElements.length) {
+                  newElements.splice(index + 1, 0, element);
+              } else {
+                  newElements.push(element); // Already at front, re-add
+              }
+              break;
+          case 'backward':
+              if (index > 0) {
+                  newElements.splice(index - 1, 0, element);
+              } else {
+                  newElements.unshift(element); // Already at back, re-add
+              }
+              break;
+          case 'front':
+              newElements.push(element);
+              break;
+          case 'back':
+              newElements.unshift(element);
+              break;
+      }
+      updateElements(newElements);
+  }, [elements, updateElements]);
+
   const onTemplateGenerated = useCallback((template: CertificateElement) => {
     updateElements(template.elements);
     setCertificateBgColor(template.backgroundColor);
     setCertificateBorderColor(template.borderColor);
     setCertificateBorderStyle(template.borderStyle || 'classic');
+    setSelectedElementId(null);
+  }, [updateElements]);
+
+  const onTemplateImported = useCallback((template: CertificateTemplate) => {
+    updateElements(template.elements);
+    setCertificateBgColor(template.backgroundColor);
+    setCertificateBorderColor(template.borderColor);
+    setCertificateBorderStyle(template.borderStyle || 'classic');
+    setCertificateSize(template.size);
     setSelectedElementId(null);
   }, [updateElements]);
 
@@ -148,6 +183,7 @@ const App: React.FC = () => {
         updateElement={updateElement}
         addElement={addElement}
         deleteElement={deleteElement}
+        handleLayerChange={handleLayerChange}
         certificateRef={certificateRef}
         setSelectedElementId={setSelectedElementId}
         handleUndo={handleUndo}
@@ -155,10 +191,15 @@ const App: React.FC = () => {
         canUndo={historyIndex > 0}
         canRedo={historyIndex < history.length - 1}
         onTemplateGenerated={onTemplateGenerated}
+        onTemplateImported={onTemplateImported}
+        elements={elements}
         certificateSize={certificateSize}
         setCertificateSize={handleSetCertificateSize}
+        certificateBgColor={certificateBgColor}
         certificateBorderStyle={certificateBorderStyle}
         setCertificateBorderStyle={setCertificateBorderStyle}
+        certificateBorderColor={certificateBorderColor}
+        setCertificateBorderColor={setCertificateBorderColor}
       />
       <main ref={mainContentRef} className="flex-1 flex items-start justify-center p-4 overflow-auto">
         <div 

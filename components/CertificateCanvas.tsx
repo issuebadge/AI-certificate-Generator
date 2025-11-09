@@ -61,6 +61,7 @@ const CertificateCanvas: React.FC<CertificateCanvasProps> = ({
           isSelected={element.id === selectedElementId}
           onSelect={() => setSelectedElementId(element.id)}
           updateElement={updateElement}
+          scale={scale}
         />
       ))}
     </div>

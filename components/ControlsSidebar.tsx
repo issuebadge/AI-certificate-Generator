@@ -1,21 +1,15 @@
-
-import React, { useState, useCallback } from 'react';
-import { Element, TextElement, CertificateElement, BorderStyle } from '../types';
+import React, { useState, useCallback, useRef } from 'react';
+import { Element, TextElement, CertificateElement, BorderStyle, CertificateTemplate, CertificateSize } from '../types';
 import { generateCertificateTemplate } from '../services/geminiService';
-import { AddImageIcon, AddTextIcon, DeleteIcon, DownloadIcon, LoaderIcon, RedoIcon, UndoIcon, AlignCenterIcon, AlignLeftIcon, AlignRightIcon, AlignJustifyIcon, BoldIcon, ItalicIcon, UnderlineIcon } from './icons';
+import { AddImageIcon, AddTextIcon, DeleteIcon, DownloadIcon, LoaderIcon, RedoIcon, UndoIcon, AlignCenterIcon, AlignLeftIcon, AlignRightIcon, AlignJustifyIcon, BoldIcon, ItalicIcon, UnderlineIcon, ImportIcon, PresentationIcon, BringForwardIcon, SendBackwardIcon, BringToFrontIcon, SendToBackIcon } from './icons';
 
 // Fix for window.jspdf and window.html2canvas TypeScript errors
 declare global {
   interface Window {
     jspdf: any;
     html2canvas: any;
+    PptxGenJS: any;
   }
-}
-
-interface CertificateSize {
-    name: string;
-    width: number;
-    height: number;
 }
 
 interface ControlsSidebarProps {
@@ -23,6 +17,7 @@ interface ControlsSidebarProps {
   updateElement: (id: string, newProps: Partial<Element>) => void;
   addElement: (type: 'text' | 'image') => void;
   deleteElement: (id: string) => void;
+  handleLayerChange: (id: string, direction: 'forward' | 'backward' | 'front' | 'back') => void;
   certificateRef: React.RefObject<HTMLDivElement>;
   setSelectedElementId: (id: string | null) => void;
   handleUndo: () => void;
@@ -30,23 +25,35 @@ interface ControlsSidebarProps {
   canUndo: boolean;
   canRedo: boolean;
   onTemplateGenerated: (template: CertificateElement) => void;
+  onTemplateImported: (template: CertificateTemplate) => void;
+  elements: Element[];
   certificateSize: CertificateSize;
   setCertificateSize: (size: CertificateSize) => void;
+  certificateBgColor: string;
   certificateBorderStyle: BorderStyle;
   setCertificateBorderStyle: (style: BorderStyle) => void;
+  certificateBorderColor: string;
+  setCertificateBorderColor: (color: string) => void;
 }
 
 const FONT_FACES = ['Roboto', 'Merriweather', 'Montserrat', 'Playfair Display', 'Open Sans', 'Lato'];
-const SIZES = [
-    { name: 'A4 Landscape', width: 1123, height: 794, format: 'a4', orientation: 'l' as const },
-    { name: 'A4 Portrait', width: 794, height: 1123, format: 'a4', orientation: 'p' as const },
-    { name: 'Letter Landscape', width: 1056, height: 816, format: 'letter', orientation: 'l' as const },
-    { name: 'Letter Portrait', width: 816, height: 1056, format: 'letter', orientation: 'p' as const },
+const SIZES: CertificateSize[] = [
+    { name: 'A4 Landscape', width: 1123, height: 794, displayName: 'A4 Landscape (11.7" x 8.3")' },
+    { name: 'A4 Portrait', width: 794, height: 1123, displayName: 'A4 Portrait (8.3" x 11.7")' },
+    { name: 'Letter Landscape', width: 1056, height: 816, displayName: 'Letter Landscape (11" x 8.5")' },
+    { name: 'Letter Portrait', width: 816, height: 1056, displayName: 'Letter Portrait (8.5" x 11")' },
 ];
+const PDF_FORMATS: { [key: string]: { format: string, orientation: 'l' | 'p'} } = {
+    'A4 Landscape': { format: 'a4', orientation: 'l' },
+    'A4 Portrait': { format: 'a4', orientation: 'p' },
+    'Letter Landscape': { format: 'letter', orientation: 'l' },
+    'Letter Portrait': { format: 'letter', orientation: 'p' },
+};
 const BORDER_STYLES: { id: BorderStyle, name: string }[] = [
     { id: 'classic', name: 'Classic Ornate' },
     { id: 'double', name: 'Double Line' },
     { id: 'minimal', name: 'Minimalist' },
+    { id: 'none', name: 'None' },
 ];
 const SUGGESTIONS = [
     'Certificate of Completion',
@@ -62,6 +69,7 @@ const ControlsSidebar: React.FC<ControlsSidebarProps> = ({
   updateElement,
   addElement,
   deleteElement,
+  handleLayerChange,
   certificateRef,
   setSelectedElementId,
   handleUndo,
@@ -69,14 +77,20 @@ const ControlsSidebar: React.FC<ControlsSidebarProps> = ({
   canUndo,
   canRedo,
   onTemplateGenerated,
+  onTemplateImported,
+  elements,
   certificateSize,
   setCertificateSize,
+  certificateBgColor,
   certificateBorderStyle,
-  setCertificateBorderStyle
+  setCertificateBorderStyle,
+  certificateBorderColor,
+  setCertificateBorderColor
 }) => {
   const [prompt, setPrompt] = useState('Certificate of Appreciation');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const importInputRef = useRef<HTMLInputElement>(null);
 
   const handleGenerate = async () => {
     setIsLoading(true);
@@ -100,15 +114,15 @@ const ControlsSidebar: React.FC<ControlsSidebarProps> = ({
             const certificateNode = certificateRef.current;
             if (!certificateNode) return;
 
-            const selectedSize = SIZES.find(s => s.name === certificateSize.name);
-            if (!selectedSize) return;
+            const selectedSizeFormat = PDF_FORMATS[certificateSize.name];
+            if (!selectedSizeFormat) return;
 
-            window.html2canvas(certificateNode, { scale: 2 }).then(canvas => {
+            window.html2canvas(certificateNode, { scale: 2, useCORS: true }).then(canvas => {
                 const imgData = canvas.toDataURL('image/png');
                 const pdf = new jsPDF({
-                    orientation: selectedSize.orientation,
+                    orientation: selectedSizeFormat.orientation,
                     unit: 'px',
-                    format: selectedSize.format
+                    format: selectedSizeFormat.format
                 });
                 const pdfWidth = pdf.internal.pageSize.getWidth();
                 const pdfHeight = pdf.internal.pageSize.getHeight();
@@ -119,6 +133,85 @@ const ControlsSidebar: React.FC<ControlsSidebarProps> = ({
         }, 100);
     }
   }, [certificateRef, setSelectedElementId, certificateSize.name]);
+
+  const handlePptxDownload = useCallback(() => {
+    if (certificateRef.current) {
+        setSelectedElementId(null);
+        // Allow state to update and UI to re-render without selection box
+        setTimeout(() => {
+            const PptxGenJS = window.PptxGenJS;
+            if (!PptxGenJS) {
+                console.error("PptxGenJS not loaded");
+                alert("Could not export to PPTX. The required library is missing.");
+                return;
+            }
+            const certificateNode = certificateRef.current;
+            if (!certificateNode) return;
+
+            window.html2canvas(certificateNode, { scale: 2, useCORS: true }).then(canvas => {
+                const imgData = canvas.toDataURL('image/png');
+                const pres = new PptxGenJS();
+
+                const isLandscape = certificateSize.width > certificateSize.height;
+                pres.layout = isLandscape ? 'LAYOUT_16x9' : 'LAYOUT_9x16';
+                
+                const slide = pres.addSlide();
+                
+                slide.addImage({
+                    data: imgData,
+                    x: 0,
+                    y: 0,
+                    w: '100%',
+                    h: '100%',
+                });
+
+                pres.writeFile({ fileName: 'certificate.pptx' });
+            });
+        }, 100);
+    }
+  }, [certificateRef, setSelectedElementId, certificateSize]);
+
+  const handleExport = useCallback(() => {
+    const template: CertificateTemplate = {
+        size: certificateSize,
+        backgroundColor: certificateBgColor,
+        borderColor: certificateBorderColor,
+        borderStyle: certificateBorderStyle,
+        elements: elements,
+    };
+    const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(template, null, 2));
+    const downloadAnchorNode = document.createElement('a');
+    downloadAnchorNode.setAttribute("href", dataStr);
+    downloadAnchorNode.setAttribute("download", `certificate-template-${Date.now()}.json`);
+    document.body.appendChild(downloadAnchorNode);
+    downloadAnchorNode.click();
+    downloadAnchorNode.remove();
+  }, [elements, certificateSize, certificateBgColor, certificateBorderColor, certificateBorderStyle]);
+
+  const handleFileSelected = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+        try {
+            const result = event.target?.result;
+            if (typeof result === 'string') {
+                const template = JSON.parse(result) as CertificateTemplate;
+                if (template.elements && template.size && template.backgroundColor && template.borderColor && template.borderStyle) {
+                    onTemplateImported(template);
+                } else {
+                    alert('Invalid template file format.');
+                }
+            }
+        } catch (error) {
+            console.error("Error importing template:", error);
+            alert('Failed to read or parse template file.');
+        }
+    };
+    reader.readAsText(file);
+    if (e.target) e.target.value = ''; // Allow re-importing same file
+  };
 
     const handleSizeChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
         const newSize = SIZES.find(s => s.name === e.target.value);
@@ -230,6 +323,45 @@ const ControlsSidebar: React.FC<ControlsSidebarProps> = ({
     );
   };
 
+  const renderLayerControls = () => {
+    if (!selectedElement) return null;
+    const currentIndex = elements.findIndex(el => el.id === selectedElement.id);
+    const isAtBack = currentIndex === 0;
+    const isAtFront = currentIndex === elements.length - 1;
+
+    return (
+        <div className="p-3 bg-gray-50 rounded-lg">
+            <label className="text-xs text-gray-500 block mb-2">Layer Order</label>
+            <div className="grid grid-cols-2 gap-2">
+                <button
+                    onClick={() => handleLayerChange(selectedElement.id, 'forward')}
+                    disabled={isAtFront}
+                    className="flex items-center justify-center gap-2 bg-gray-200 text-gray-700 py-2 px-3 rounded-md hover:bg-gray-300 disabled:opacity-50 transition duration-150 text-sm">
+                    <BringForwardIcon /> Forward
+                </button>
+                <button
+                    onClick={() => handleLayerChange(selectedElement.id, 'backward')}
+                    disabled={isAtBack}
+                    className="flex items-center justify-center gap-2 bg-gray-200 text-gray-700 py-2 px-3 rounded-md hover:bg-gray-300 disabled:opacity-50 transition duration-150 text-sm">
+                    <SendBackwardIcon /> Backward
+                </button>
+                <button
+                    onClick={() => handleLayerChange(selectedElement.id, 'front')}
+                    disabled={isAtFront}
+                    className="flex items-center justify-center gap-2 bg-gray-200 text-gray-700 py-2 px-3 rounded-md hover:bg-gray-300 disabled:opacity-50 transition duration-150 text-sm">
+                    <BringToFrontIcon /> To Front
+                </button>
+                 <button
+                    onClick={() => handleLayerChange(selectedElement.id, 'back')}
+                    disabled={isAtBack}
+                    className="flex items-center justify-center gap-2 bg-gray-200 text-gray-700 py-2 px-3 rounded-md hover:bg-gray-300 disabled:opacity-50 transition duration-150 text-sm">
+                    <SendToBackIcon /> To Back
+                </button>
+            </div>
+        </div>
+    );
+  };
+
 
   return (
     <div className="w-80 bg-white shadow-lg h-full flex flex-col p-4 space-y-4 overflow-y-auto">
@@ -242,7 +374,7 @@ const ControlsSidebar: React.FC<ControlsSidebarProps> = ({
           <div>
             <label htmlFor="size-select" className="text-sm font-semibold text-gray-600 mb-2 block">Page Size</label>
             <select id="size-select" value={certificateSize.name} onChange={handleSizeChange} className="w-full p-2 border rounded-md focus:ring-2 focus:ring-indigo-500 transition duration-150 bg-white text-sm">
-                {SIZES.map(s => <option key={s.name} value={s.name}>{s.name} ({s.width}x{s.height}px)</option>)}
+                {SIZES.map(s => <option key={s.name} value={s.name}>{s.displayName}</option>)}
             </select>
           </div>
           <div>
@@ -251,6 +383,18 @@ const ControlsSidebar: React.FC<ControlsSidebarProps> = ({
                 {BORDER_STYLES.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
             </select>
           </div>
+          {certificateBorderStyle !== 'none' && (
+              <div>
+                  <label htmlFor="border-color-picker" className="text-sm font-semibold text-gray-600 mb-2 block">Border Color</label>
+                  <input
+                      id="border-color-picker"
+                      type="color"
+                      value={certificateBorderColor}
+                      onChange={(e) => setCertificateBorderColor(e.target.value)}
+                      className="w-full h-10 p-1 border rounded-md"
+                  />
+              </div>
+          )}
           <div>
             <label htmlFor="prompt" className="text-sm font-semibold text-gray-600 mb-2 block">Certificate Type</label>
             <textarea
@@ -327,6 +471,8 @@ const ControlsSidebar: React.FC<ControlsSidebarProps> = ({
                 className="w-full"
               />
             </div>
+            
+            {renderLayerControls()}
 
           <button onClick={() => deleteElement(selectedElement.id)} className="w-full flex items-center justify-center gap-2 bg-red-500 text-white py-2 px-3 rounded-md hover:bg-red-600 transition duration-150 text-sm">
                 <DeleteIcon /> Delete Element
@@ -336,10 +482,30 @@ const ControlsSidebar: React.FC<ControlsSidebarProps> = ({
 
       <div className="flex-grow"></div>
 
-      <div className="pt-4">
-        <button onClick={handleDownload} className="w-full bg-green-600 text-white font-semibold py-2 px-4 rounded-md hover:bg-green-700 flex items-center justify-center gap-2 transition duration-150">
-           <DownloadIcon /> Download as PDF
-        </button>
+      <div className="pt-4 space-y-2">
+        <div className="grid grid-cols-2 gap-2">
+            <button onClick={handleDownload} className="w-full bg-green-600 text-white font-semibold py-2 px-2 rounded-md hover:bg-green-700 flex items-center justify-center gap-2 transition duration-150 text-sm">
+               <DownloadIcon /> PDF
+            </button>
+            <button onClick={handlePptxDownload} className="w-full bg-orange-500 text-white font-semibold py-2 px-2 rounded-md hover:bg-orange-600 flex items-center justify-center gap-2 transition duration-150 text-sm">
+               <PresentationIcon /> PPTX
+            </button>
+        </div>
+        <div className="flex gap-2">
+            <button onClick={() => importInputRef.current?.click()} className="flex-1 flex items-center justify-center gap-2 bg-gray-200 text-gray-700 py-2 px-3 rounded-md hover:bg-gray-300 transition duration-150 text-sm">
+                <ImportIcon /> Import Template
+            </button>
+            <button onClick={handleExport} className="flex-1 flex items-center justify-center gap-2 bg-gray-200 text-gray-700 py-2 px-3 rounded-md hover:bg-gray-300 transition duration-150 text-sm">
+                <DownloadIcon /> Export Template
+            </button>
+        </div>
+        <input
+            type="file"
+            ref={importInputRef}
+            onChange={handleFileSelected}
+            className="hidden"
+            accept="application/json"
+        />
       </div>
     </div>
   );
